@@ -6,12 +6,13 @@ import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function EditProductPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const productId = params.id;
+type Props = {
+  params: Promise<{ id: string; category: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export default async function EditProductPage({ params }: Props) {
+  const { id: productId } = await params;
   const docRef = doc(db, "Products", productId);
   const searchSnap = await getDoc(doc(db, "SearchIndex", productId));
 
