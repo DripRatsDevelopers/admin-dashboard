@@ -12,14 +12,26 @@ import {
 } from "@/components/ui/table";
 import cloudinaryLoader from "@/lib/cloudinaryUtils";
 import { deleteProduct, fetchAllProducts, Product } from "@/lib/products";
-import { Edit, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../ui/alert-dialog";
 
 export default function ProductList() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -31,8 +43,10 @@ export default function ProductList() {
   }, []);
 
   const handleDelete = async (id: string) => {
+    setIsDeleteLoading(true);
     await deleteProduct(id);
     setProducts((prev) => prev.filter((p) => p.ProductId !== id));
+    setIsDeleteLoading(false);
   };
 
   return (
@@ -92,13 +106,54 @@ export default function ProductList() {
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Link>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(product.ProductId!)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <div className="flex items-center space-x-2">
+                                <AlertTriangle className="h-5 w-5 text-red-600" />
+                                <AlertDialogTitle>
+                                  Delete {product.Name}?
+                                </AlertDialogTitle>
+                              </div>
+                              <AlertDialogDescription className="text-left">
+                                This action cannot be undone. This will
+                                permanently delete the &quot;{product.Name}
+                                &quot; product.
+                                <br />
+                                <br />
+                                <strong>
+                                  Are you sure you want to continue?
+                                </strong>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(product.ProductId!)}
+                                disabled={isDeleteLoading}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                {isDeleteLoading ? (
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Deleting...</span>
+                                  </div>
+                                ) : (
+                                  "Delete"
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
