@@ -1,5 +1,6 @@
 "use client";
 
+import OrdersDashboard from "@/components/common/OrdersTab";
 import ProductList from "@/components/common/ProductList";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
@@ -74,9 +75,7 @@ export default function Dashboard() {
           <div className="text-muted-foreground">[Overview Placeholder]</div>
         )}
 
-        {activeTab === "orders" && (
-          <div className="text-muted-foreground">[Orders Placeholder]</div>
-        )}
+        {activeTab === "orders" && <OrdersDashboard />}
 
         {activeTab === "products" && <ProductList />}
       </section>
