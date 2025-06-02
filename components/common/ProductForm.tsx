@@ -11,7 +11,7 @@ import cloudinaryLoader from "@/lib/cloudinaryUtils";
 import { db } from "@/lib/firebase";
 import { toKebabCase } from "@/lib/utils";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -72,6 +72,20 @@ export default function ProductForm({ mode, defaultValues }: ProductFormProps) {
   }, [form]);
 
   const [details, setDetails] = useState<Detail[]>([]);
+
+  // Initialize details from defaultValues if in edit mode
+  useEffect(() => {
+    if (defaultValues?.DetailedDescription && details.length === 0) {
+      const initialDetails = Object.entries(
+        defaultValues.DetailedDescription
+      ).map(([key, value]) => ({
+        id: crypto.randomUUID(),
+        key,
+        value,
+      }));
+      setDetails(initialDetails);
+    }
+  }, [defaultValues, details.length]);
 
   const router = useRouter();
 
@@ -140,215 +154,431 @@ export default function ProductForm({ mode, defaultValues }: ProductFormProps) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const removeTag = (indexToRemove: number) => {
+    const newTags = form.Tags.filter((_, index) => index !== indexToRemove);
+    updateField("Tags", newTags);
+  };
+
   return (
-    <Tabs value={step} onValueChange={setStep} className="w-full">
-      <TabsList className="grid grid-cols-5 mb-4">
-        <TabsTrigger value="basic">Basic</TabsTrigger>
-        <TabsTrigger value="images">Images</TabsTrigger>
-        <TabsTrigger value="details">Description</TabsTrigger>
-        <TabsTrigger value="seo">SEO & Tags</TabsTrigger>
-        <TabsTrigger value="review">Preview</TabsTrigger>
-      </TabsList>
-
-      {/* Step 1: Basic */}
-      <TabsContent value="basic">
-        <div className="space-y-4">
-          <div>
-            <Label>Name</Label>
-            <Input
-              value={form.Name}
-              onChange={(e) => updateField("Name", e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Price</Label>
-              <Input
-                type="number"
-                value={form.Price}
-                onChange={(e) => updateField("Price", Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <Label>Discounted Price (optional)</Label>
-              <Input
-                type="number"
-                value={form.DiscountedPrice ?? ""}
-                onChange={(e) =>
-                  updateField("DiscountedPrice", Number(e.target.value))
-                }
-              />
-            </div>
-          </div>
-          <div className="flex align-items-center gap-2">
-            <Label>In Stock</Label>
-            <Switch
-              checked={form.InStock}
-              onCheckedChange={(val) => updateField("InStock", val)}
-            />
-          </div>
-          <div>
-            <Label>Category</Label>
-            <Input
-              value={form.Category}
-              onChange={(e) => updateField("Category", e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>Description</Label>
-            <Textarea
-              value={form.Description}
-              onChange={(e) => updateField("Description", e.target.value)}
-            />
-          </div>
-        </div>
-      </TabsContent>
-
-      {/* Step 2: Images */}
-      <TabsContent value="images">
-        <div className="space-y-4">
-          {form.ImageUrls.map((url, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <Input
-                value={url}
-                onChange={(e) => {
-                  const newUrls = [...form.ImageUrls];
-                  newUrls[idx] = e.target.value;
-                  updateField("ImageUrls", newUrls);
-                }}
-              />
-              {url && (
-                <Image
-                  src={cloudinaryLoader({ src: url, width: 40 })}
-                  alt="preview"
-                  width={40}
-                  height={40}
-                  className="rounded object-cover border"
-                />
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const newUrls = form.ImageUrls.filter((_, i) => i !== idx);
-                  updateField("ImageUrls", newUrls);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="outline"
-            onClick={() => updateField("ImageUrls", [...form.ImageUrls, ""])}
-          >
-            Add Image URL
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Upload images to Cloudinary and paste public IDs here.
-          </p>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="details">
-        <div className="space-y-4">
-          {details.map((item, idx) => (
-            <div
-              key={item.id}
-              className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center"
+    <div className="w-full">
+      <Tabs value={step} onValueChange={setStep} className="w-full">
+        {/* Mobile: Scrollable tab list */}
+        <div className="overflow-x-auto mb-4">
+          <TabsList className="grid grid-cols-5 min-w-full sm:w-auto">
+            <TabsTrigger
+              value="basic"
+              className="text-xs sm:text-sm px-2 sm:px-4"
             >
-              <Input
-                placeholder="Key"
-                value={item.key}
-                onChange={(e) => {
-                  const updated = [...details];
-                  updated[idx].key = e.target.value;
-                  setDetails(updated);
-                }}
-              />
-              <Input
-                placeholder="Value"
-                value={item.value}
-                onChange={(e) => {
-                  const updated = [...details];
-                  updated[idx].value = e.target.value;
-                  setDetails(updated);
-                }}
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  setDetails((prev) => prev.filter((d) => d.id !== item.id));
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
-
-          <Button
-            variant="outline"
-            onClick={() =>
-              setDetails((prev) => [
-                ...prev,
-                { id: crypto.randomUUID(), key: "", value: "" },
-              ])
-            }
-          >
-            Add Field
-          </Button>
+              Basic
+            </TabsTrigger>
+            <TabsTrigger
+              value="images"
+              className="text-xs sm:text-sm px-2 sm:px-4"
+            >
+              Images
+            </TabsTrigger>
+            <TabsTrigger
+              value="details"
+              className="text-xs sm:text-sm px-2 sm:px-4"
+            >
+              Details
+            </TabsTrigger>
+            <TabsTrigger
+              value="seo"
+              className="text-xs sm:text-sm px-2 sm:px-4"
+            >
+              SEO
+            </TabsTrigger>
+            <TabsTrigger
+              value="review"
+              className="text-xs sm:text-sm px-2 sm:px-4"
+            >
+              Review
+            </TabsTrigger>
+          </TabsList>
         </div>
-      </TabsContent>
 
-      {/* Step 4: SEO & Tags */}
-      <TabsContent value="seo">
-        <div className="space-y-4">
-          <div>
-            <Label>Tags (comma separated)</Label>
-            <Input
-              value={form.Tags.join(",")}
-              onChange={(e) =>
-                updateField(
-                  "Tags",
-                  e.target.value.split(",").map((s) => s.trim())
-                )
+        {/* Step 1: Basic */}
+        <TabsContent value="basic">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name" className="text-sm font-medium">
+                Product Name
+              </Label>
+              <Input
+                id="name"
+                value={form.Name}
+                onChange={(e) => updateField("Name", e.target.value)}
+                placeholder="Enter product name"
+                className="mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="price" className="text-sm font-medium">
+                  Price (₹)
+                </Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={form.Price}
+                  onChange={(e) => updateField("Price", Number(e.target.value))}
+                  placeholder="0"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label
+                  htmlFor="discounted-price"
+                  className="text-sm font-medium"
+                >
+                  Discounted Price (₹)
+                </Label>
+                <Input
+                  id="discounted-price"
+                  type="number"
+                  value={form.DiscountedPrice ?? ""}
+                  onChange={(e) =>
+                    updateField("DiscountedPrice", Number(e.target.value))
+                  }
+                  placeholder="Optional"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Label htmlFor="in-stock" className="text-sm font-medium">
+                In Stock
+              </Label>
+              <Switch
+                id="in-stock"
+                checked={form.InStock}
+                onCheckedChange={(val) => updateField("InStock", val)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="category" className="text-sm font-medium">
+                Category
+              </Label>
+              <Input
+                id="category"
+                value={form.Category}
+                onChange={(e) => updateField("Category", e.target.value)}
+                placeholder="Enter category"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description" className="text-sm font-medium">
+                Description
+              </Label>
+              <Textarea
+                id="description"
+                value={form.Description}
+                onChange={(e) => updateField("Description", e.target.value)}
+                placeholder="Enter product description"
+                className="mt-1 min-h-[100px]"
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Step 2: Images */}
+        <TabsContent value="images">
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Product Images
+              </Label>
+              <p className="text-xs text-muted-foreground mb-4">
+                Upload images to Cloudinary and paste public IDs here.
+              </p>
+            </div>
+
+            {form.ImageUrls.map((url, idx) => (
+              <div key={idx} className="space-y-2">
+                <div className="flex gap-2 items-start">
+                  <Input
+                    value={url}
+                    onChange={(e) => {
+                      const newUrls = [...form.ImageUrls];
+                      newUrls[idx] = e.target.value;
+                      updateField("ImageUrls", newUrls);
+                    }}
+                    placeholder="Enter Cloudinary public ID"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const newUrls = form.ImageUrls.filter(
+                        (_, i) => i !== idx
+                      );
+                      updateField("ImageUrls", newUrls);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {url && (
+                  <div className="flex justify-center">
+                    <Image
+                      src={cloudinaryLoader({ src: url, width: 120 })}
+                      alt="preview"
+                      width={120}
+                      height={80}
+                      className="rounded object-cover border"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              onClick={() => updateField("ImageUrls", [...form.ImageUrls, ""])}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Image URL
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* Step 3: Details */}
+        <TabsContent value="details">
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Product Details
+              </Label>
+              <p className="text-xs text-muted-foreground mb-4">
+                Add detailed specifications and features.
+              </p>
+            </div>
+
+            {details.map((item, idx) => (
+              <div key={item.id} className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Detail name (e.g. Material)"
+                    value={item.key}
+                    onChange={(e) => {
+                      const updated = [...details];
+                      updated[idx].key = e.target.value;
+                      setDetails(updated);
+                    }}
+                  />
+                  <Input
+                    placeholder="Detail value (e.g. Cotton)"
+                    value={item.value}
+                    onChange={(e) => {
+                      const updated = [...details];
+                      updated[idx].value = e.target.value;
+                      setDetails(updated);
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setDetails((prev) =>
+                        prev.filter((d) => d.id !== item.id)
+                      );
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              onClick={() =>
+                setDetails((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), key: "", value: "" },
+                ])
               }
-            />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {form.Tags.map((tag, i) => (
-                <Badge key={i}>{tag}</Badge>
-              ))}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Detail
+            </Button>
+          </div>
+        </TabsContent>
+
+        {/* Step 4: SEO & Tags */}
+        <TabsContent value="seo">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="tags" className="text-sm font-medium">
+                Tags
+              </Label>
+              <Input
+                id="tags"
+                value={form.Tags.join(", ")}
+                onChange={(e) => {
+                  const tagString = e.target.value;
+                  const tags = tagString.split(",").map((s) => s.trim());
+                  updateField("Tags", tags);
+                }}
+                placeholder="Enter tags separated by commas"
+                className="mt-1"
+              />
+
+              {form.Tags.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {form.Tags.map(
+                    (tag, i) =>
+                      tag && (
+                        <Badge key={i} variant="secondary" className="text-xs">
+                          {tag}
+                          <button
+                            onClick={() => removeTag(i)}
+                            className="ml-2 hover:text-destructive"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="meta-title" className="text-sm font-medium">
+                Meta Title
+              </Label>
+              <Input
+                id="meta-title"
+                value={form.MetaTitle}
+                onChange={(e) => updateField("MetaTitle", e.target.value)}
+                placeholder="SEO title for search engines"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="meta-description" className="text-sm font-medium">
+                Meta Description
+              </Label>
+              <Textarea
+                id="meta-description"
+                value={form.MetaDescription}
+                onChange={(e) => updateField("MetaDescription", e.target.value)}
+                placeholder="SEO description for search engines"
+                className="mt-1 min-h-[80px]"
+              />
             </div>
           </div>
-          <div>
-            <Label>Meta Title</Label>
-            <Input
-              value={form.MetaTitle}
-              onChange={(e) => updateField("MetaTitle", e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>Meta Description</Label>
-            <Textarea
-              value={form.MetaDescription}
-              onChange={(e) => updateField("MetaDescription", e.target.value)}
-            />
-          </div>
-        </div>
-      </TabsContent>
+        </TabsContent>
 
-      {/* Step 5: Review & Submit */}
-      <TabsContent value="review">
-        <div className="space-y-4">
-          <pre className="bg-muted p-4 rounded text-sm overflow-x-auto">
-            {JSON.stringify(form, null, 2)}
-          </pre>
-          <Button onClick={handleSubmit} disabled={!isValid}>
-            {mode == "edit" ? "Update Product" : "Add Product"}
-          </Button>
-        </div>
-      </TabsContent>
-    </Tabs>
+        {/* Step 5: Review & Submit */}
+        <TabsContent value="review">
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Product Summary
+              </Label>
+              <div className="bg-muted p-4 rounded-lg space-y-2 text-sm">
+                <div>
+                  <strong>Name:</strong> {form.Name || "Not set"}
+                </div>
+                <div>
+                  <strong>Price:</strong> ₹{form.Price || 0}
+                </div>
+                {form.DiscountedPrice && (
+                  <div>
+                    <strong>Discounted Price:</strong> ₹{form.DiscountedPrice}
+                  </div>
+                )}
+                <div>
+                  <strong>Category:</strong> {form.Category || "Not set"}
+                </div>
+                <div>
+                  <strong>In Stock:</strong> {form.InStock ? "Yes" : "No"}
+                </div>
+                <div>
+                  <strong>Images:</strong>{" "}
+                  {form.ImageUrls.filter(Boolean).length} added
+                </div>
+                <div>
+                  <strong>Tags:</strong> {form.Tags.length} added
+                </div>
+                <div>
+                  <strong>Details:</strong> {details.length} added
+                </div>
+                {details.length > 0 && (
+                  <div className="mt-2 pl-2 border-l-2 border-muted-foreground/20">
+                    {details.slice(0, 3).map((detail, i) => (
+                      <div key={i} className="text-xs text-muted-foreground">
+                        {detail.key}: {detail.value}
+                      </div>
+                    ))}
+                    {details.length > 3 && (
+                      <div className="text-xs text-muted-foreground">
+                        ... and {details.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium mb-2 block">
+                Full Data Preview
+              </Label>
+              <pre className="bg-muted p-4 rounded text-xs overflow-x-auto max-h-60">
+                {JSON.stringify(
+                  {
+                    ...form,
+                    DetailedDescription:
+                      details.length > 0
+                        ? details.reduce((acc, { key, value }) => {
+                            if (key.trim()) acc[key.trim()] = value.trim();
+                            return acc;
+                          }, {} as Record<string, string>)
+                        : {},
+                  },
+                  null,
+                  2
+                )}
+              </pre>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Button
+                onClick={handleSubmit}
+                disabled={!isValid}
+                className="flex-1 sm:flex-none"
+              >
+                {mode === "edit" ? "Update Product" : "Create Product"}
+              </Button>
+
+              {!isValid && (
+                <p className="text-sm text-muted-foreground text-center sm:text-left">
+                  Please fill in required fields: Name, Price, and at least one
+                  image.
+                </p>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
