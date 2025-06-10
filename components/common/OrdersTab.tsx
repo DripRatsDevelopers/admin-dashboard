@@ -23,46 +23,30 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useOrders } from "@/hooks/useOrders";
+import cloudinaryLoader from "@/lib/cloudinaryUtils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { OrderDetails, OrderEnum, shippingInfo } from "@/types/order";
 import {
+  ArrowRight,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   CreditCard,
-  Edit3,
   Eye,
   Filter,
   MapPin,
   Package,
+  RefreshCw,
   Search,
   Truck,
   User,
   X,
 } from "lucide-react";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
-
-// Types
-interface OrderItem {
-  ProductId: string;
-  Quantity: number;
-  Price: number;
-  Name: string;
-}
-
-interface Order {
-  OrderId: string;
-  UserId: string;
-  Items: OrderItem[];
-  TotalAmount: number;
-  ShippingAddress: string;
-  Status: OrderStatus;
-  CreatedAt: string;
-  UpdatedAt: string;
-  Email: string;
-  FirstItemName: string;
-  FirstItemImage: string;
-}
+import React, { useState } from "react";
+import AddressForm from "./AddressForm";
+import { ApiWrapper } from "./ApiWrapper";
+import InfiniteScroll from "./InfiniteScroll";
 
 type OrderStatus =
   | "PENDING"
@@ -84,308 +68,50 @@ interface StatsData {
   delivered: number;
 }
 
-interface PaginationInfo {
-  currentPage: number;
-  itemsPerPage: number;
-  totalItems: number;
-  totalPages: number;
-}
-
-// Mock data generator
-const generateMockOrders = (): Order[] => [
-  {
-    OrderId: "ORD-2024-001",
-    UserId: "user-123",
-    Items: [
-      {
-        ProductId: "prod-1",
-        Quantity: 2,
-        Price: 29.99,
-        Name: "Wireless Headphones",
-      },
-      { ProductId: "prod-2", Quantity: 1, Price: 49.99, Name: "Phone Case" },
-    ],
-    TotalAmount: 109.97,
-    ShippingAddress: "123 Main St, New York, NY 10001",
-    Status: "DELIVERED",
-    CreatedAt: "2024-05-28T10:30:00Z",
-    UpdatedAt: "2024-05-30T14:22:00Z",
-    Email: "john.doe@email.com",
-    FirstItemName: "Wireless Headphones",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=WH",
+const orderStatuses: Record<OrderEnum, OrderStatusConfig> = {
+  [OrderEnum.PENDING]: {
+    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    icon: Clock,
   },
-  {
-    OrderId: "ORD-2024-002",
-    UserId: "user-456",
-    Items: [
-      { ProductId: "prod-3", Quantity: 1, Price: 199.99, Name: "Smart Watch" },
-    ],
-    TotalAmount: 199.99,
-    ShippingAddress: "456 Oak Ave, Los Angeles, CA 90210",
-    Status: "SHIPPED",
-    CreatedAt: "2024-05-29T15:45:00Z",
-    UpdatedAt: "2024-06-01T09:15:00Z",
-    Email: "jane.smith@email.com",
-    FirstItemName: "Smart Watch",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=SW",
+  [OrderEnum.PAID]: {
+    color: "bg-blue-100 text-blue-800 border-blue-200",
+    icon: CreditCard,
   },
-  {
-    OrderId: "ORD-2024-003",
-    UserId: "user-789",
-    Items: [
-      { ProductId: "prod-4", Quantity: 3, Price: 15.99, Name: "USB Cable" },
-      {
-        ProductId: "prod-5",
-        Quantity: 1,
-        Price: 89.99,
-        Name: "Wireless Mouse",
-      },
-      {
-        ProductId: "prod-6",
-        Quantity: 2,
-        Price: 24.99,
-        Name: "Screen Protector",
-      },
-    ],
-    TotalAmount: 187.95,
-    ShippingAddress: "789 Pine St, Chicago, IL 60601",
-    Status: "CONFIRMED",
-    CreatedAt: "2024-06-01T08:20:00Z",
-    UpdatedAt: "2024-06-01T16:30:00Z",
-    Email: "mike.johnson@email.com",
-    FirstItemName: "USB Cable",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=UC",
+  [OrderEnum.CONFIRMED]: {
+    color: "bg-green-100 text-green-800 border-green-200",
+    icon: CheckCircle,
   },
-  {
-    OrderId: "ORD-2024-004",
-    UserId: "user-321",
-    Items: [
-      {
-        ProductId: "prod-7",
-        Quantity: 1,
-        Price: 299.99,
-        Name: "Bluetooth Speaker",
-      },
-    ],
-    TotalAmount: 299.99,
-    ShippingAddress: "321 Elm St, Miami, FL 33101",
-    Status: "PENDING",
-    CreatedAt: "2024-06-02T12:10:00Z",
-    UpdatedAt: "2024-06-02T12:10:00Z",
-    Email: "sarah.wilson@email.com",
-    FirstItemName: "Bluetooth Speaker",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=BS",
+  [OrderEnum.SHIPPED]: {
+    color: "bg-purple-100 text-purple-800 border-purple-200",
+    icon: Truck,
   },
-  {
-    OrderId: "ORD-2024-005",
-    UserId: "user-555",
-    Items: [
-      {
-        ProductId: "prod-8",
-        Quantity: 1,
-        Price: 79.99,
-        Name: "Gaming Mouse Pad",
-      },
-    ],
-    TotalAmount: 79.99,
-    ShippingAddress: "555 Broadway, Seattle, WA 98101",
-    Status: "OUTFORDELIVERY",
-    CreatedAt: "2024-06-01T14:30:00Z",
-    UpdatedAt: "2024-06-02T10:45:00Z",
-    Email: "alex.brown@email.com",
-    FirstItemName: "Gaming Mouse Pad",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=MP",
+  [OrderEnum.OUTFORDELIVERY]: {
+    color: "bg-orange-100 text-orange-800 border-orange-200",
+    icon: Truck,
   },
-  {
-    OrderId: "ORD-2024-006",
-    UserId: "user-666",
-    Items: [
-      { ProductId: "prod-9", Quantity: 2, Price: 24.99, Name: "Phone Charger" },
-    ],
-    TotalAmount: 49.98,
-    ShippingAddress: "666 Market St, San Francisco, CA 94102",
-    Status: "PAID",
-    CreatedAt: "2024-06-02T09:15:00Z",
-    UpdatedAt: "2024-06-02T09:15:00Z",
-    Email: "emma.davis@email.com",
-    FirstItemName: "Phone Charger",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=PC",
+  [OrderEnum.DELIVERED]: {
+    color: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    icon: CheckCircle,
   },
-  {
-    OrderId: "ORD-2024-007",
-    UserId: "user-777",
-    Items: [
-      {
-        ProductId: "prod-10",
-        Quantity: 1,
-        Price: 89.99,
-        Name: "Wireless Keyboard",
-      },
-    ],
-    TotalAmount: 89.99,
-    ShippingAddress: "777 Pine Ave, Boston, MA 02101",
-    Status: "CONFIRMED",
-    CreatedAt: "2024-06-01T16:20:00Z",
-    UpdatedAt: "2024-06-02T08:30:00Z",
-    Email: "robert.taylor@email.com",
-    FirstItemName: "Wireless Keyboard",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=WK",
-  },
-  {
-    OrderId: "ORD-2024-008",
-    UserId: "user-888",
-    Items: [
-      { ProductId: "prod-11", Quantity: 2, Price: 39.99, Name: "USB Hub" },
-    ],
-    TotalAmount: 79.98,
-    ShippingAddress: "888 Oak St, Denver, CO 80201",
-    Status: "SHIPPED",
-    CreatedAt: "2024-06-01T11:15:00Z",
-    UpdatedAt: "2024-06-02T13:45:00Z",
-    Email: "lisa.martinez@email.com",
-    FirstItemName: "USB Hub",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=UH",
-  },
-  {
-    OrderId: "ORD-2024-009",
-    UserId: "user-999",
-    Items: [
-      {
-        ProductId: "prod-12",
-        Quantity: 1,
-        Price: 149.99,
-        Name: "Tablet Stand",
-      },
-    ],
-    TotalAmount: 149.99,
-    ShippingAddress: "999 Elm Ave, Phoenix, AZ 85001",
-    Status: "PENDING",
-    CreatedAt: "2024-06-02T14:30:00Z",
-    UpdatedAt: "2024-06-02T14:30:00Z",
-    Email: "david.lee@email.com",
-    FirstItemName: "Tablet Stand",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=TS",
-  },
-  {
-    OrderId: "ORD-2024-010",
-    UserId: "user-101",
-    Items: [
-      {
-        ProductId: "prod-13",
-        Quantity: 3,
-        Price: 19.99,
-        Name: "Cable Organizer",
-      },
-    ],
-    TotalAmount: 59.97,
-    ShippingAddress: "101 Main Ave, Portland, OR 97201",
-    Status: "DELIVERED",
-    CreatedAt: "2024-05-30T09:00:00Z",
-    UpdatedAt: "2024-06-01T17:20:00Z",
-    Email: "maria.garcia@email.com",
-    FirstItemName: "Cable Organizer",
-    FirstItemImage: "https://via.placeholder.com/60x60?text=CO",
-  },
-];
+};
 
 const OrdersDashboard: React.FC = () => {
-  const [orders] = useState<Order[]>(generateMockOrders());
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>(orders);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<OrderEnum | "ALL">("ALL");
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage] = useState<number>(5);
 
-  const orderStatuses: Record<OrderStatus, OrderStatusConfig> = {
-    PENDING: {
-      color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      icon: Clock,
-    },
-    PAID: {
-      color: "bg-blue-100 text-blue-800 border-blue-200",
-      icon: CreditCard,
-    },
-    CONFIRMED: {
-      color: "bg-green-100 text-green-800 border-green-200",
-      icon: CheckCircle,
-    },
-    SHIPPED: {
-      color: "bg-purple-100 text-purple-800 border-purple-200",
-      icon: Truck,
-    },
-    OUTFORDELIVERY: {
-      color: "bg-orange-100 text-orange-800 border-orange-200",
-      icon: Truck,
-    },
-    DELIVERED: {
-      color: "bg-emerald-100 text-emerald-800 border-emerald-200",
-      icon: CheckCircle,
-    },
-  };
-
-  // Filter orders based on search and status
-  useEffect(() => {
-    let filtered = orders;
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (order) =>
-          order.OrderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.Email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.FirstItemName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== "ALL") {
-      filtered = filtered.filter((order) => order.Status === statusFilter);
-    }
-
-    setFilteredOrders(filtered);
-    setCurrentPage(1); // Reset to first page when filtering
-  }, [searchTerm, statusFilter, orders]);
-
-  // Calculate pagination
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentOrders = filteredOrders.slice(startIndex, endIndex);
-
-  const paginationInfo: PaginationInfo = {
-    currentPage,
-    itemsPerPage,
-    totalItems: filteredOrders.length,
-    totalPages,
-  };
-
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  };
-
-  const updateOrderStatus = (orderId: string, newStatus: OrderStatus): void => {
-    if (selectedOrder && selectedOrder.OrderId === orderId) {
-      setSelectedOrder({
-        ...selectedOrder,
-        Status: newStatus,
-        UpdatedAt: new Date().toISOString(),
-      });
-    }
-  };
+  const {
+    orders,
+    loading,
+    loadingMore,
+    refreshing,
+    error,
+    hasMore,
+    loadMore,
+    refresh,
+  } = useOrders({ status: statusFilter, search: searchTerm, limit: 10 });
 
   const getStatusStats = (): StatsData => {
     return {
@@ -396,10 +122,6 @@ const OrdersDashboard: React.FC = () => {
       ).length,
       delivered: orders.filter((o) => o.Status === "DELIVERED").length,
     };
-  };
-
-  const handlePageChange = (page: number): void => {
-    setCurrentPage(page);
   };
 
   const StatusBadge: React.FC<{ status: OrderStatus; className?: string }> = ({
@@ -425,143 +147,91 @@ const OrdersDashboard: React.FC = () => {
     );
   };
 
-  const OrderCard: React.FC<{ order: Order }> = ({ order }) => (
-    <Card className="mb-4 hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={order.FirstItemImage}
-              alt={order.FirstItemName}
-              className="w-12 h-12 rounded-lg object-cover"
-            />
-            <div>
-              <p className="font-semibold text-sm">{order.OrderId}</p>
-              <p className="text-xs text-gray-600 truncate max-w-32">
-                {order.FirstItemName}
-              </p>
+  const OrderCard: React.FC<{ order: OrderDetails }> = ({ order }) => {
+    const addressDetails: shippingInfo | undefined =
+      selectedOrder?.ShippingAddress
+        ? JSON.parse(selectedOrder?.ShippingAddress)
+        : undefined;
+    return (
+      <Card className="mb-4 hover:shadow-md transition-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Image
+                src={cloudinaryLoader({
+                  src: order.FirstItemImage,
+                  width: 12,
+                })}
+                alt={order.FirstItemName}
+                className="w-12 h-12 rounded-lg object-cover"
+                width={12}
+                height={12}
+              />
+              <div>
+                <p className="font-semibold text-sm"> {order.FirstItemName}</p>
+                <p className="text-xs text-gray-600 truncate max-w-32">
+                  {order.OrderId}
+                </p>
+              </div>
+            </div>
+            <StatusBadge status={order.Status} />
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Name:</span>
+              <span className="font-medium truncate ml-2">
+                {addressDetails?.fullName}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Customer:</span>
+              <span className="font-medium truncate ml-2">{order.Email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Amount:</span>
+              <span className="font-bold text-green-600">
+                {formatCurrency(order.TotalAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Items:</span>
+              <span>
+                {order.Items.length} item{order.Items.length > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Date:</span>
+              <span className="text-xs">{formatDate(order.CreatedAt)}</span>
             </div>
           </div>
-          <StatusBadge status={order.Status} />
-        </div>
-
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Customer:</span>
-            <span className="font-medium truncate ml-2">{order.Email}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Amount:</span>
-            <span className="font-bold text-green-600">
-              {formatCurrency(order.TotalAmount)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Items:</span>
-            <span>
-              {order.Items.length} item{order.Items.length > 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Date:</span>
-            <span className="text-xs">{formatDate(order.CreatedAt)}</span>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full mt-3"
-          onClick={() => {
-            setSelectedOrder(order);
-            setIsOrderDetailOpen(true);
-          }}
-        >
-          <Eye className="w-4 h-4 mr-2" />
-          View Details
-        </Button>
-      </CardContent>
-    </Card>
-  );
-
-  const Pagination: React.FC<{ paginationInfo: PaginationInfo }> = ({
-    paginationInfo,
-  }) => {
-    const { currentPage, totalPages, totalItems, itemsPerPage } =
-      paginationInfo;
-    const startItem = (currentPage - 1) * itemsPerPage + 1;
-    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-
-    return (
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-2">
-        <div className="text-sm text-gray-700">
-          Showing {startItem} to {endItem} of {totalItems} orders
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="h-8 w-8 p-0"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <div className="flex items-center gap-1">
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((page) => {
-                const distance = Math.abs(page - currentPage);
-                return (
-                  distance === 0 ||
-                  distance === 1 ||
-                  page === 1 ||
-                  page === totalPages
-                );
-              })
-              .map((page, index, array) => {
-                const prevPage = array[index - 1];
-                const showEllipsis = prevPage && page - prevPage > 1;
-
-                return (
-                  <React.Fragment key={page}>
-                    {showEllipsis && (
-                      <span className="text-gray-400 text-sm px-2">...</span>
-                    )}
-                    <Button
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(page)}
-                      className="h-8 w-8 p-0"
-                    >
-                      {page}
-                    </Button>
-                  </React.Fragment>
-                );
-              })}
-          </div>
 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="h-8 w-8 p-0"
+            className="w-full mt-3"
+            onClick={() => {
+              setSelectedOrder(order);
+              setIsOrderDetailOpen(true);
+            }}
           >
-            <ChevronRight className="h-4 w-4" />
+            <Eye className="w-4 h-4 mr-2" />
+            View Details
           </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   };
 
   const OrderDetailDialog: React.FC = () => {
     if (!selectedOrder) return null;
-
+    const addressDetails: shippingInfo | undefined =
+      selectedOrder?.ShippingAddress
+        ? JSON.parse(selectedOrder?.ShippingAddress)
+        : undefined;
     return (
       <Dialog open={isOrderDetailOpen} onOpenChange={setIsOrderDetailOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -575,42 +245,14 @@ const OrdersDashboard: React.FC = () => {
           </DialogHeader>
 
           <div className="space-y-6 mt-4">
-            {/* Order Status Update */}
-            <Card>
-              <CardHeader className="pb-3">
+            <Card className="gap-3">
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Package className="w-5 h-5" />
                   Order Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-                  <Select
-                    value={selectedOrder.Status}
-                    onValueChange={(value: OrderStatus) =>
-                      updateOrderStatus(selectedOrder.OrderId, value)
-                    }
-                  >
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(orderStatuses).map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status.replace("OUTFORDELIVERY", "OUT FOR DELIVERY")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                  >
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Update Status
-                  </Button>
-                </div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>Created: {formatDate(selectedOrder.CreatedAt)}</p>
                   <p>Last Updated: {formatDate(selectedOrder.UpdatedAt)}</p>
@@ -618,47 +260,46 @@ const OrdersDashboard: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Customer & Shipping Info */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <User className="w-5 h-5" />
-                    Customer Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium">{selectedOrder.Email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">User ID</p>
-                    <p className="font-medium text-sm">
-                      {selectedOrder.UserId}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            <Card className="gap-3">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <User className="w-5 h-5" />
+                  Customer Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-600">Name</p>
+                  <p className="font-medium">{addressDetails?.fullName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Email</p>
+                  <p className="font-medium">{selectedOrder.Email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Phone</p>
+                  <p className="font-medium text-sm">{addressDetails?.phone}</p>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <MapPin className="w-5 h-5" />
-                    Shipping Address
-                  </CardTitle>
-                </CardHeader>
+            <Card className="gap-3">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-md">
+                  <MapPin className="w-5 h-5" />
+                  Shipping Address
+                </CardTitle>
+              </CardHeader>
+              {addressDetails ? (
                 <CardContent>
-                  <p className="text-sm leading-relaxed">
-                    {selectedOrder.ShippingAddress}
-                  </p>
+                  <AddressForm {...addressDetails} />
                 </CardContent>
-              </Card>
-            </div>
+              ) : null}
+            </Card>
 
             {/* Order Items */}
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="gap-3">
                 <CardTitle className="text-lg">Order Items</CardTitle>
               </CardHeader>
               <CardContent>
@@ -669,11 +310,14 @@ const OrdersDashboard: React.FC = () => {
                       className="flex items-center gap-4 p-4 border rounded-lg"
                     >
                       <Image
-                        src={`https://via.placeholder.com/60x60?text=${item.Name.charAt(
-                          0
-                        )}`}
+                        src={cloudinaryLoader({
+                          src: selectedOrder.FirstItemImage,
+                          width: 12,
+                        })}
                         alt={item.Name}
                         className="w-12 h-12 sm:w-15 sm:h-15 rounded-lg object-cover flex-shrink-0"
+                        width={12}
+                        height={12}
                       />
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm sm:text-base truncate">
@@ -719,19 +363,36 @@ const OrdersDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b px-4 py-3">
+      <div className="lg:hidden bg-white border-b px-2 py-3 flex items-center justify-between">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Orders</h1>
         </div>
+        <a
+          href="https://app.shiprocket.in/seller/orders/new?sku=&order_ids=&order_status=&channel_id=&payment_method=&pickup_address_id=&delivery_country=&quantity=&is_order_verified=&ship_weight=&previously_cancelled="
+          target="_blank"
+          className="flex items-center gap-1 border rounded-sm p-1 text-sm"
+        >
+          Go To Shiprocket <ArrowRight />
+        </a>
       </div>
 
-      <div className="p-4 lg:p-6">
+      <div className="p-2 lg:p-6">
         <div className="max-w-7xl mx-auto">
           {/* Desktop Header */}
           <div className="hidden lg:block mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Orders Management
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Orders Management
+              </h1>
+              <a
+                href="https://app.shiprocket.in/seller/orders/new?sku=&order_ids=&order_status=&channel_id=&payment_method=&pickup_address_id=&delivery_country=&quantity=&is_order_verified=&ship_weight=&previously_cancelled="
+                target="_blank"
+                className="flex bg-primary text-secondary items-center gap-1 border rounded-sm p-2 text-sm"
+              >
+                Go To Shiprocket <ArrowRight />
+              </a>
+            </div>
+
             <p className="text-gray-600">Track and manage customer orders</p>
           </div>
 
@@ -809,7 +470,12 @@ const OrdersDashboard: React.FC = () => {
                     />
                   </div>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) =>
+                    setStatusFilter(value as OrderEnum | "ALL")
+                  }
+                >
                   <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Filter by status" />
@@ -830,9 +496,22 @@ const OrdersDashboard: React.FC = () => {
           {/* Orders List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg lg:text-xl font-semibold">
-                Orders ({filteredOrders.length})
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg lg:text-xl font-semibold">
+                  Orders ({orders.length})
+                </h2>
+                <Button
+                  onClick={refresh}
+                  disabled={refreshing}
+                  variant="outline"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                  />
+                </Button>
+              </div>
+
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button
@@ -917,7 +596,9 @@ const OrdersDashboard: React.FC = () => {
                       </label>
                       <Select
                         value={statusFilter}
-                        onValueChange={setStatusFilter}
+                        onValueChange={(value) =>
+                          setStatusFilter(value as OrderEnum | "ALL")
+                        }
                       >
                         <SelectTrigger className="w-full border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all duration-200">
                           <SelectValue placeholder="Select status..." />
@@ -997,9 +678,9 @@ const OrdersDashboard: React.FC = () => {
                   <div className="border-t border-gray-100 pt-4 pb-2">
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>
-                        {filteredOrders.length !== undefined &&
-                          `${filteredOrders.length} order${
-                            filteredOrders.length !== 1 ? "s" : ""
+                        {orders.length !== undefined &&
+                          `${orders.length} order${
+                            orders.length !== 1 ? "s" : ""
                           } found`}
                       </span>
                       <Button
@@ -1018,7 +699,7 @@ const OrdersDashboard: React.FC = () => {
 
             {/* Mobile Order Cards */}
             <div className="lg:hidden space-y-4">
-              {currentOrders.map((order) => (
+              {orders.map((order) => (
                 <OrderCard key={order.OrderId} order={order} />
               ))}
             </div>
@@ -1055,71 +736,106 @@ const OrdersDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {currentOrders.map((order) => (
-                          <tr key={order.OrderId} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-3">
-                                <img
-                                  src={order.FirstItemImage}
-                                  alt={order.FirstItemName}
-                                  className="w-10 h-10 rounded object-cover"
-                                />
-                                <div>
-                                  <p className="font-medium text-sm">
-                                    {order.OrderId}
-                                  </p>
-                                  <p className="text-xs text-gray-600 truncate max-w-32">
-                                    {order.FirstItemName}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {order.Email}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  {order.UserId}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
-                                {order.Items.length} item
-                                {order.Items.length > 1 ? "s" : ""}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap font-medium text-sm">
-                              {formatCurrency(order.TotalAmount)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <StatusBadge status={order.Status} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
-                              {formatDate(order.CreatedAt)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedOrder(order);
-                                  setIsOrderDetailOpen(true);
-                                }}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
+                        <ApiWrapper
+                          loading={loading}
+                          error={error}
+                          data={orders?.length}
+                        >
+                          <InfiniteScroll
+                            hasMore={hasMore}
+                            loadMore={loadMore}
+                            loading={loadingMore}
+                          >
+                            {orders.map((order) => {
+                              const addressDetails: shippingInfo | undefined =
+                                order?.ShippingAddress
+                                  ? JSON.parse(order?.ShippingAddress)
+                                  : undefined;
+                              return (
+                                <tr
+                                  key={order.OrderId}
+                                  className="hover:bg-gray-50"
+                                >
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-3">
+                                      <Image
+                                        src={cloudinaryLoader({
+                                          src: order.FirstItemImage,
+                                          width: 10,
+                                        })}
+                                        alt={order.FirstItemName}
+                                        className="w-10 h-10 rounded object-cover"
+                                        width={10}
+                                        height={10}
+                                      />
+                                      <div>
+                                        <p className="font-medium text-sm">
+                                          {order.FirstItemName}
+                                        </p>
+                                        <p className="text-xs text-gray-600 truncate max-w-32">
+                                          {order.OrderId}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div>
+                                      <p className="font-medium text-sm">
+                                        {addressDetails?.fullName}
+                                      </p>
+                                      <p className="font-medium text-sm text-gray-600">
+                                        {order.Email}
+                                      </p>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
+                                      {order.Items.length} item
+                                      {order.Items.length > 1 ? "s" : ""}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap font-medium text-sm">
+                                    {formatCurrency(order.TotalAmount)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <StatusBadge status={order.Status} />
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                                    {formatDate(order.CreatedAt)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedOrder(order);
+                                        setIsOrderDetailOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      View
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </InfiniteScroll>
+                        </ApiWrapper>
                       </tbody>
                     </table>
                   </div>
-
-                  {filteredOrders.length === 0 && (
-                    <div className="text-center py-12">
+                  {loadingMore && (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  )}
+                  {!hasMore && orders.length > 0 && (
+                    <div className="text-center text-sm py-8 text-gray-500">
+                      No more orders to load
+                    </div>
+                  )}
+                  {orders.length === 0 && !loading && (
+                    <div className="hidden md:block text-center py-12">
                       <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">
                         No orders found
@@ -1134,7 +850,7 @@ const OrdersDashboard: React.FC = () => {
             </div>
 
             {/* Mobile Empty State */}
-            {filteredOrders.length === 0 && (
+            {orders.length === 0 && (
               <div className="lg:hidden text-center py-12">
                 <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1145,16 +861,10 @@ const OrdersDashboard: React.FC = () => {
                 </p>
               </div>
             )}
-
-            {/* Pagination */}
-            {filteredOrders.length > 0 && (
-              <Pagination paginationInfo={paginationInfo} />
-            )}
           </div>
         </div>
       </div>
 
-      {/* Order Detail Dialog */}
       <OrderDetailDialog />
     </div>
   );
