@@ -9,6 +9,7 @@ interface InfiniteScrollProps {
   loadMore: () => void;
   children: React.ReactNode;
   loader?: React.ReactNode;
+  showLoader?: boolean;
 }
 
 const InfiniteScroll = ({
@@ -17,6 +18,7 @@ const InfiniteScroll = ({
   loadMore,
   children,
   loader,
+  showLoader,
 }: InfiniteScrollProps) => {
   const observerRef = useRef<HTMLDivElement | null>(null);
 
@@ -46,6 +48,7 @@ const InfiniteScroll = ({
     <>
       {children}
       {loading &&
+        showLoader &&
         (loader || (
           <div className="flex items-center justify-center p-4">
             <Loader2 className="animate-spin w-6 h-6 text-muted-foreground" />

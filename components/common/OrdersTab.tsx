@@ -699,9 +699,38 @@ const OrdersDashboard: React.FC = () => {
 
             {/* Mobile Order Cards */}
             <div className="lg:hidden space-y-4">
-              {orders.map((order) => (
-                <OrderCard key={order.OrderId} order={order} />
-              ))}
+              <ApiWrapper loading={loading} error={error} data={orders?.length}>
+                <InfiniteScroll
+                  hasMore={hasMore}
+                  loadMore={loadMore}
+                  loading={loadingMore}
+                >
+                  {orders.map((order) => (
+                    <OrderCard key={order.OrderId} order={order} />
+                  ))}
+                </InfiniteScroll>
+              </ApiWrapper>
+              {loadingMore && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+              {!hasMore && orders.length > 0 && (
+                <div className="text-center text-sm py-8 text-gray-500">
+                  No more orders to load
+                </div>
+              )}
+              {orders.length === 0 && !loading && (
+                <div className="hidden md:block text-center py-12">
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No orders found
+                  </h3>
+                  <p className="text-gray-500">
+                    Try adjusting your search or filter criteria.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Desktop Table */}
