@@ -39,3 +39,20 @@ export async function dripRatsFetch(apiParams?: FetchOptions) {
   const data = response?.body?.data;
   return data;
 }
+
+export function apiResponse({
+  success,
+  data = null,
+  error = null,
+  status = 200,
+}: {
+  success: boolean;
+  data?: Record<string, unknown> | null;
+  error?: string | null;
+  status?: number;
+}) {
+  return {
+    status,
+    body: { success: success ?? false, data, error },
+  };
+}

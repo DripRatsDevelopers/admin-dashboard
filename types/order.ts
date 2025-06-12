@@ -7,6 +7,13 @@ export enum OrderEnum {
   DELIVERED = "DELIVERED",
 }
 
+export enum ShipRocketOrderEnum {
+  TOTAL = "TOTAL",
+  NEW = "NEW",
+  SHIPPED = "SHIPPED",
+  OUTFORDELIVERY = "OUTFORDELIVERY",
+  DELIVERED = "DELIVERED",
+}
 export interface OrderItem {
   ProductId: string;
   Quantity: number;

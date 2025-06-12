@@ -24,11 +24,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useOrders } from "@/hooks/useOrders";
+import { useDripratsQuery } from "@/hooks/useTanstackQuery";
 import cloudinaryLoader from "@/lib/cloudinaryUtils";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { OrderDetails, OrderEnum, shippingInfo } from "@/types/order";
 import {
   ArrowRight,
+  ArrowUpFromLine,
   CheckCircle,
   Clock,
   CreditCard,
@@ -63,9 +65,18 @@ interface OrderStatusConfig {
 
 interface StatsData {
   total: number;
-  pending: number;
+  new: number;
   shipped: number;
   delivered: number;
+  outForDelivery: number;
+}
+
+interface OrderStatsResponse {
+  totalOrders: number;
+  newOrders: number;
+  shippedOrders: number;
+  deliveredOrders: number;
+  outForDeliveryOrders: number;
 }
 
 const orderStatuses: Record<OrderEnum, OrderStatusConfig> = {
@@ -113,14 +124,20 @@ const OrdersDashboard: React.FC = () => {
     refresh,
   } = useOrders({ status: statusFilter, search: searchTerm, limit: 10 });
 
+  const { data: orderStats, isLoading } = useDripratsQuery<OrderStatsResponse>({
+    queryKey: ["/api/orders/stats"],
+    apiParams: {
+      url: `/api/orders/stats`,
+    },
+  });
+
   const getStatusStats = (): StatsData => {
     return {
-      total: orders.length,
-      pending: orders.filter((o) => o.Status === "PENDING").length,
-      shipped: orders.filter((o) =>
-        ["SHIPPED", "OUTFORDELIVERY"].includes(o.Status)
-      ).length,
-      delivered: orders.filter((o) => o.Status === "DELIVERED").length,
+      total: orderStats?.totalOrders || 0,
+      new: orderStats?.newOrders || 0,
+      shipped: orderStats?.shippedOrders || 0,
+      delivered: orderStats?.deliveredOrders || 0,
+      outForDelivery: orderStats?.outForDeliveryOrders || 0,
     };
   };
 
@@ -403,9 +420,13 @@ const OrdersDashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs lg:text-sm text-gray-600">Total</p>
-                    <p className="text-lg lg:text-2xl font-bold">
-                      {stats.total}
-                    </p>
+                    {isLoading ? (
+                      <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+                    ) : (
+                      <p className="text-lg lg:text-2xl font-bold">
+                        {stats.total || 0}
+                      </p>
+                    )}
                   </div>
                   <Package className="w-6 h-6 lg:w-8 lg:h-8 text-blue-600" />
                 </div>
@@ -415,10 +436,14 @@ const OrdersDashboard: React.FC = () => {
               <CardContent className="p-4 lg:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs lg:text-sm text-gray-600">Pending</p>
-                    <p className="text-lg lg:text-2xl font-bold text-yellow-600">
-                      {stats.pending}
-                    </p>
+                    <p className="text-xs lg:text-sm text-gray-600">New</p>
+                    {isLoading ? (
+                      <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+                    ) : (
+                      <p className="text-lg lg:text-2xl font-bold text-yellow-600">
+                        {stats.new || 0}
+                      </p>
+                    )}
                   </div>
                   <Clock className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-600" />
                 </div>
@@ -430,9 +455,13 @@ const OrdersDashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs lg:text-sm text-gray-600">Shipped</p>
-                    <p className="text-lg lg:text-2xl font-bold text-purple-600">
-                      {stats.shipped}
-                    </p>
+                    {isLoading ? (
+                      <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+                    ) : (
+                      <p className="text-lg lg:text-2xl font-bold text-purple-600">
+                        {stats.shipped || 0}
+                      </p>
+                    )}
                   </div>
                   <Truck className="w-6 h-6 lg:w-8 lg:h-8 text-purple-600" />
                 </div>
@@ -443,11 +472,34 @@ const OrdersDashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs lg:text-sm text-gray-600">
+                      Out For Delivery
+                    </p>
+                    {isLoading ? (
+                      <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+                    ) : (
+                      <p className="text-lg lg:text-2xl font-bold text-orange-600">
+                        {stats.outForDelivery || 0}
+                      </p>
+                    )}
+                  </div>
+                  <ArrowUpFromLine className="w-6 h-6 lg:w-8 lg:h-8 text-orange-600" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 lg:p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs lg:text-sm text-gray-600">
                       Delivered
                     </p>
-                    <p className="text-lg lg:text-2xl font-bold text-green-600">
-                      {stats.delivered}
-                    </p>
+                    {isLoading ? (
+                      <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+                    ) : (
+                      <p className="text-lg lg:text-2xl font-bold text-green-600">
+                        {stats.delivered || 0}
+                      </p>
+                    )}
                   </div>
                   <CheckCircle className="w-6 h-6 lg:w-8 lg:h-8 text-green-600" />
                 </div>
