@@ -9,6 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import cloudinaryLoader from "@/lib/cloudinaryUtils";
 import { db } from "@/lib/firebase";
+import {
+  PRODUCT_SUMMARY_COLLECTION,
+  PRODUCTS_COLLECTION,
+  SEARCH_INDEX_COLLECTION,
+} from "@/lib/products";
 import { toKebabCase } from "@/lib/utils";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { Plus, Trash2, X } from "lucide-react";
@@ -132,13 +137,25 @@ export default function ProductForm({ mode, defaultValues }: ProductFormProps) {
 
     try {
       if (mode === "edit") {
-        await updateDoc(doc(db, "Products", productId), productData);
-        await updateDoc(doc(db, "ProductSummary", productId), summaryData);
-        await updateDoc(doc(db, "SearchIndex", productId), searchIndexData);
+        await updateDoc(doc(db, PRODUCTS_COLLECTION, productId), productData);
+        await updateDoc(
+          doc(db, PRODUCT_SUMMARY_COLLECTION, productId),
+          summaryData
+        );
+        await updateDoc(
+          doc(db, SEARCH_INDEX_COLLECTION, productId),
+          searchIndexData
+        );
       } else {
-        await setDoc(doc(db, "Products", productId), productData);
-        await setDoc(doc(db, "ProductSummary", productId), summaryData);
-        await setDoc(doc(db, "SearchIndex", productId), searchIndexData);
+        await setDoc(doc(db, PRODUCTS_COLLECTION, productId), productData);
+        await setDoc(
+          doc(db, PRODUCT_SUMMARY_COLLECTION, productId),
+          summaryData
+        );
+        await setDoc(
+          doc(db, SEARCH_INDEX_COLLECTION, productId),
+          searchIndexData
+        );
       }
 
       router.push("/");

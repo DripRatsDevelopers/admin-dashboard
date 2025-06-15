@@ -9,7 +9,9 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 
-const PRODUCTS_COLLECTION = "Products";
+export const PRODUCTS_COLLECTION = "Products";
+export const PRODUCT_SUMMARY_COLLECTION = "ProductSummary";
+export const SEARCH_INDEX_COLLECTION = "SearchIndex";
 
 export interface Product {
   ProductId: string;
@@ -46,5 +48,9 @@ export async function updateProduct(id: string, product: Omit<Product, "id">) {
 }
 
 export async function deleteProduct(id: string) {
-  return await deleteDoc(doc(db, PRODUCTS_COLLECTION, id));
+  return await Promise.all([
+    deleteDoc(doc(db, PRODUCTS_COLLECTION, id)),
+    deleteDoc(doc(db, PRODUCT_SUMMARY_COLLECTION, id)),
+    deleteDoc(doc(db, SEARCH_INDEX_COLLECTION, id)),
+  ]);
 }
